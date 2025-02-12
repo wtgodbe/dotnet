@@ -11,7 +11,6 @@ param(
 )
 
 # Load the XML file
-# $manifestPath = "C:\Users\wigodbe\Downloads\MergedManifest (9).xml"
 $xmlContent = [xml](Get-Content -Path $manifestPath)
 
 # Get all files in the assets folder, including subfolders
