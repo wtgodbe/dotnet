@@ -910,7 +910,7 @@ stages:
     - job: FinalJoin
       displayName: Final Build Pass
       pool: ${{ parameters.pool_Windows }}
-      timeoutInMinutes: 240
+      timeoutInMinutes: 360
       templateContext:
         outputParentDirectory: $(Build.ArtifactStagingDirectory)/artifacts
         outputs:
@@ -955,5 +955,13 @@ stages:
       timeoutInMinutes: 240
       steps:
       - template: ../steps/vmr-validate-signing.yml
+        parameters:
+          continueOnError: true
+    - job: ValidateAssetBaselines
+      displayName: Validate Asset Baselines
+      pool: ${{ parameters.pool_Windows }}
+      timeoutInMinutes: 180
+      steps:
+      - template: ../steps/vmr-validate-asset-baseline.yml
         parameters:
           continueOnError: true

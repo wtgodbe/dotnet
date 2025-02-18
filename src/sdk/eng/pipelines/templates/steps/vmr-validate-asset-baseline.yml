@@ -1,0 +1,36 @@
+parameters:
+- name: continueOnError
+  type: boolean
+  default: false
+- name: darcPath
+  value: $(Build.SourcesDirectory)\artifacts\tools\darc
+
+steps:
+- task: DownloadBuildArtifacts@1
+  inputs:
+    artifactName: 'AssetManifests'
+    downloadPath: $(Build.ArtifactStagingDirectory)
+    checkDownloadedFiles: true
+  displayName: Download Asset Manifest
+
+- powershell: $(Build.SourcesDirectory)\eng\common\darc-init.ps1 -toolpath $(darcpath)
+  displayName: Install darc
+
+- task: PowerShell@2
+  inputs:
+    filePath: $(Build.SourcesDirectory)\src\sdk\eng\GatherDrops.ps1
+    arguments: -filePath '$(Build.SourcesDirectory)\src\source-manifest.json' -outputPath '$(Build.ArtifactStagingDirectory)\assets\'
+      -darcPath $(darcpath)
+  displayName: Gather Drop
+
+- task: PowerShell@2
+  inputs:
+    filePath: $(Build.SourcesDirectory)\src\sdk\eng\CheckFiles.ps1
+    arguments: -manifestPath '$(Build.ArtifactStagingDirectory)\AssetManifests\MergedManifest.xml' -assetBasePath '$(Build.ArtifactStagingDirectory)\assets\'
+      -outputFilePath $(Build.SourcesDirectory)\artifacts\AssetBaselines\
+  displayName: Gather Drop
+
+- publish: $(Build.SourcesDirectory)\artifacts\AssetBaselines\
+  artifact: AssetBaselineFiles
+  displayName: Publish Asset Baseline Files
+  continueOnError: true
