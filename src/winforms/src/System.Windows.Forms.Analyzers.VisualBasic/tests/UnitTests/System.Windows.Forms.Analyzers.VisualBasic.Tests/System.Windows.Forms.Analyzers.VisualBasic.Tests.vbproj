@@ -4,7 +4,7 @@
     <Nullable>enable</Nullable>
     <LangVersion>15.5</LangVersion>
     <RootNamespace>System.Windows.Forms.Analyzers.Tests</RootNamespace>
-    <DefaultItemExcludesInProjectFolder>$(DefaultItemExcludesInProjectFolder);**/Data/*.vb</DefaultItemExcludesInProjectFolder>
+    <DefaultItemExcludesInProjectFolder>$(DefaultItemExcludesInProjectFolder);**/TestData/*.vb</DefaultItemExcludesInProjectFolder>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,7 +24,6 @@
     <PackageReference Include="Microsoft.CodeAnalysis.VisualBasic.SourceGenerators.Testing.XUnit" />
     <PackageReference Include="Verify.Xunit" />
     <PackageReference Include="NuGet.Packaging" />
-    <PackageReference Include="System.Formats.Asn1" />
   </ItemGroup>
 
   <ItemGroup>
@@ -36,7 +35,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="**\Data\*.vb">
+    <Content Include="**\TestData\*.vb">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>
