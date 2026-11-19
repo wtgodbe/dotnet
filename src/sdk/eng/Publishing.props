@@ -56,6 +56,13 @@
     <Artifact Update="$(ArtifactsNonShippingPackagesDir)Microsoft.NET.Workload.*.Manifest-*.nupkg" Visibility="Internal" />
   </ItemGroup>
 
+  <!-- With a split workload build, the Workloads job builds the manifest packages locally only to generate the pack MSIs.
+       The manifest packages are published by the Windows x64 vertical, so don't republish them. -->
+  <ItemGroup Condition="'$(WorkloadBuildMode)' == 'Packs'">
+    <Artifact Update="$(ArtifactsShippingPackagesDir)Microsoft.NET.Workload.*.Manifest-*.nupkg" Visibility="Vertical" />
+    <Artifact Update="$(ArtifactsNonShippingPackagesDir)Microsoft.NET.Workload.*.Manifest-*.nupkg" Visibility="Vertical" />
+  </ItemGroup>
+
   <Target Name="GetNonStableProductVersion">
     <!-- Retrieve the non-stable product version. -->
     <MSBuild Projects="$(RepoRoot)src\Layout\redist\redist.csproj"
