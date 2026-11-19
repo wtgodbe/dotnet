@@ -15,6 +15,10 @@
     <BuildArgs Condition="'$(EnablePoison)' == 'true' or '$(SkipUsingCrossgen)' == 'true'">$(BuildArgs) /p:SkipUsingCrossgen=true</BuildArgs>
 
     <BuildArgs Condition="'$(BuildWorkloads)' == 'true'">$(BuildArgs) /p:BuildWorkloads=true</BuildArgs>
+    <!-- Split workload build: the Windows verticals (WorkloadBuildMode=Vertical) build their workload MSIs in the first build pass,
+         without the orchestrator-level BuildWorkloads switch that adds a second build pass of the sdk repo. -->
+    <BuildArgs Condition="'$(WorkloadBuildMode)' == 'Vertical' and '$(BuildWorkloads)' != 'true' and '$(DotNetBuildSharedComponents)' == 'true'">$(BuildArgs) /p:BuildWorkloads=true</BuildArgs>
+    <BuildArgs Condition="'$(WorkloadBuildMode)' != '' and '$(DotNetBuildSharedComponents)' == 'true'">$(BuildArgs) /p:WorkloadBuildMode=$(WorkloadBuildMode)</BuildArgs>
     <BuildArgs Condition="'$(BuildWorkloads)' == 'true' and '$(DotNetBuildSharedComponents)' != 'true'">$(BuildArgs) /p:DownloadWorkloadMsis=true</BuildArgs>
     <BuildArgs Condition="'$(DotNetBuildSharedComponents)' != 'true'">$(BuildArgs) /p:DotNet1xxRuntimeVersion=$(MicrosoftNETCoreAppRefVersion) /p:DotNet1xxWorkloadManifestVersion=$(DotNet1xxWorkloadManifestVersion)</BuildArgs>
   </PropertyGroup>
