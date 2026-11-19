@@ -38,6 +38,25 @@
               IsShipping="false" />
   </ItemGroup>
 
+  <!--
+    The VMR Workloads job builds the Mono toolchain workload pack MSIs and only depends on the short-stack verticals.
+    Publish the RID-agnostic workload packs (and the ref pack, which provides the runtime version) from the WebAssembly
+    verticals with Internal visibility so that they're available to that job without waiting for the Windows verticals,
+    which publish these packages externally.
+  -->
+  <ItemGroup Condition="'$(EnableDefaultRidSpecificArtifacts)' == 'true' and '$(DotNetBuildFromVMR)' == 'true' and '$(TargetRid)' == 'browser-wasm'">
+    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NETCore.App.Ref.*.nupkg;
+                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.MonoTargets.Sdk.*.nupkg;
+                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Sdk.*.nupkg;
+                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Templates.*.nupkg;
+                      $(ArtifactsPackagesDir)**\Microsoft.NET.Sdk.WebAssembly.Pack.*.nupkg"
+              Visibility="Internal" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(EnableDefaultRidSpecificArtifacts)' == 'true' and '$(DotNetBuildFromVMR)' == 'true' and '$(TargetRid)' == 'wasi-wasm'">
+    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Wasi.Sdk.*.nupkg"
+              Visibility="Internal" />
+  </ItemGroup>
+
   <Target Name="GetNonStableProductVersion">
     <!-- Retrieve the non-stable runtime pack product version.
          Don't stabilize the package version in order to retrieve the VersionSuffix. -->

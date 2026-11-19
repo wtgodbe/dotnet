@@ -4,10 +4,11 @@
     <DisallowDotNetFinalVersionKindOverride>true</DisallowDotNetFinalVersionKindOverride>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(TargetOS)' == 'linux' and '$(TargetArchitecture)' == 'x64' and '$(EnableDefaultRidSpecificArtifacts)' == 'true'">
+  <PropertyGroup Condition="(('$(TargetOS)' == 'linux' and '$(TargetArchitecture)' == 'x64') or '$(TargetOS)' == 'browser') and '$(EnableDefaultRidSpecificArtifacts)' == 'true'">
     <!--
-      We have a BuildPass2 leg that has no dependencies on Windows artifacts except for Arcade.
-      To make sure that job doesn't need to wait for the Windows verticals,
+      We have BuildPass2 legs that have no dependencies on Windows artifacts except for Arcade
+      (the Workloads job only depends on the short-stack verticals, including Browser).
+      To make sure those jobs don't need to wait for the Windows verticals,
       we'll build all of Arcade with Internal visibility.
     -->
     <EnableDefaultRidSpecificArtifacts></EnableDefaultRidSpecificArtifacts>
