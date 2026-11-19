@@ -324,4 +324,86 @@ public class CreateVisualStudioWorkloadTests : TestBase
         Assert.DoesNotContain("vs.package.chip", manifestMsiSwr);
         Assert.Contains("vs.package.machineArch=", manifestMsiSwr);
     }
+
+    [Theory]
+    [InlineData(null, new[] { "x64", "arm64" })]
+    [InlineData(new string[0], new[] { "x64", "arm64" })]
+    [InlineData(new[] { "ARM64" }, new[] { "arm64" })]
+    [InlineData(new[] { "x64", "x86" }, new[] { "x64" })]
+    public void ItFiltersPlatforms(string[] requestedPlatforms, string[] expectedPlatforms)
+    {
+        CreateVisualStudioWorkload.FilterPlatforms(["x64", "arm64"], requestedPlatforms).Should().Equal(expectedPlatforms);
+    }
+
+    [WindowsOnlyFact]
+    public void ItCanCreateOnlyManifestMsisAndComponentsForASinglePlatform()
+    {
+        CreateVisualStudioWorkload createWorkloadTask = CreateEmscriptenWorkloadTask();
+        createWorkloadTask.CreatePackMsis = false;
+        createWorkloadTask.Platforms = ["arm64"];
+
+        Assert.True(createWorkloadTask.Execute());
+
+        createWorkloadTask.Msis.Should().ContainSingle()
+            .Which.GetMetadata(Metadata.Platform).Should().Be("arm64");
+        createWorkloadTask.Msis.Should().OnlyContain(m => m.GetMetadata(Metadata.PackageType) == "manifest");
+        createWorkloadTask.SwixProjects.Should().NotContain(s => s.GetMetadata(Metadata.PackageType) == DefaultValues.PackageTypeMsiPack);
+        createWorkloadTask.SwixProjects.Should().Contain(s => s.GetMetadata(Metadata.PackageType) == DefaultValues.PackageTypeComponent);
+
+        // Components should still reference the workload packs even though no pack MSIs were built.
+        string componentSwr = File.ReadAllText(
+            Path.Combine(Path.GetDirectoryName(
+                createWorkloadTask.SwixProjects.First(
+                    i => i.ItemSpec.Contains("microsoft.net.sdk.emscripten.5.6.swixproj")).ItemSpec), "component.swr"));
+        Assert.Contains("vs.dependency id=Microsoft.Emscripten.Python.6.0.4", componentSwr);
+    }
+
+    [WindowsOnlyFact]
+    public void ItCanCreateOnlyPackMsis()
+    {
+        CreateVisualStudioWorkload createWorkloadTask = CreateEmscriptenWorkloadTask();
+        createWorkloadTask.CreateManifestMsis = false;
+        createWorkloadTask.CreateComponents = false;
+
+        Assert.True(createWorkloadTask.Execute());
+
+        createWorkloadTask.Msis.Should().NotBeEmpty();
+        createWorkloadTask.Msis.Should().NotContain(m => m.GetMetadata(Metadata.PackageType) == "manifest");
+        createWorkloadTask.SwixProjects.Should().OnlyContain(s => s.GetMetadata(Metadata.PackageType) == DefaultValues.PackageTypeMsiPack);
+    }
+
+    [Fact]
+    public void ItRejectsPackGroupsWithoutPackMsis()
+    {
+        CreateVisualStudioWorkload createWorkloadTask = CreateEmscriptenWorkloadTask();
+        createWorkloadTask.CreatePackMsis = false;
+        createWorkloadTask.CreateWorkloadPackGroups = true;
+
+        Assert.False(createWorkloadTask.Execute());
+    }
+
+    private CreateVisualStudioWorkload CreateEmscriptenWorkloadTask()
+    {
+        string testCaseDirectory = GetTestCaseDirectory();
+
+        return new CreateVisualStudioWorkload()
+        {
+            AllowMissingPacks = true,
+            BaseOutputPath = Path.Combine(testCaseDirectory, "bin"),
+            BaseIntermediateOutputPath = testCaseDirectory,
+            BuildEngine = new MockBuildEngine(),
+            ComponentResources = [],
+            PackageSource = TestAssetsPath,
+            ShortNames = [new TaskItem("Microsoft.NET.Workload.Emscripten").WithMetadata("Replacement", "Emscripten")],
+            WixExe = ToolsetInfo.WixExePath,
+            HeatExe = ToolsetInfo.HeatExePath,
+            WixExtensions = WixExtensions,
+            WorkloadManifestPackageFiles =
+            [
+                new TaskItem(Path.Combine(TestAssetsPath, "microsoft.net.workload.emscripten.manifest-6.0.200.6.0.4.nupkg"))
+                .WithMetadata(Metadata.MsiVersion, "6.33.28")
+                .WithMetadata(Metadata.SupportsMachineArch, "true")
+            ]
+        };
+    }
 }
