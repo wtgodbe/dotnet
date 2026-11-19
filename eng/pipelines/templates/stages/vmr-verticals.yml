@@ -165,6 +165,7 @@ stages:
           pool: ${{ parameters.pool_Windows }}
           targetOS: windows
           targetArchitecture: x64
+          extraProperties: /p:WorkloadBuildMode=Vertical
           tagPipelineBuildWithSdkVersion: ${{ parameters.isOfficialBuild }}
           tagPipelineBuildWithCodeql: ${{ parameters.isCodeqlActive }}
           enableAstred: ${{ parameters.isOfficialBuild }}
@@ -561,6 +562,7 @@ stages:
           pool: ${{ parameters.pool_Windows }}
           targetOS: windows
           targetArchitecture: arm64
+          extraProperties: /p:WorkloadBuildMode=Vertical
           brandingType: ${{ variables.brandingType }}
 
       - ${{ if and(not(parameters.excludeRuntimeDependentJobs), not(containsValue(parameters.verifications, 'unified-build-windows-x86'))) }}:
@@ -616,69 +618,24 @@ stages:
 
       ## Build Pass 2 verticals
 
+      # Build the Mono toolchain workload pack MSIs. This job only depends on the short-stack verticals.
+      # The Windows verticals build the workload manifest MSIs, emsdk pack MSIs, VS components and SDK bundles
+      # themselves (WorkloadBuildMode=Vertical).
       - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-
-        # build the cross-OS DACs
         - template: ../jobs/vmr-build.yml
           parameters:
-            buildName: Windows
+            buildName: Windows_Workloads
             isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
             isCodeqlActive: ${{ parameters.isCodeqlActive }}
             sign: ${{ variables.signEnabled }}
             signType: ${{ variables.signType }}
-            signDac: ${{ variables.signDacEnabled }}
+            brandingType: ${{ variables.brandingType }}
             pool: ${{ parameters.pool_Windows }}
             targetOS: windows
-            targetArchitecture: x86
+            targetArchitecture: x64
             buildPass: 2
+            extraProperties: /p:BuildWorkloads=true /p:WorkloadBuildMode=Packs
             reuseBuildArtifactsFrom:
-            - Linux_x64
-            - Linux_Alpine_x64
-            - Linux_arm64
-            - Linux_Alpine_arm64
-            - Linux_arm
-            - Linux_Alpine_arm
-            brandingType: ${{ variables.brandingType }}
-
-      # build the ASP.NET Core hosting bundle and VS components
-      - template: ../jobs/vmr-build.yml
-        parameters:
-          buildName: Windows
-          isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
-          isCodeqlActive: ${{ parameters.isCodeqlActive }}
-          sign: ${{ variables.signEnabled }}
-          signType: ${{ variables.signType }}
-          pool: ${{ parameters.pool_Windows }}
-          targetOS: windows
-          targetArchitecture: x64
-          buildPass: 2
-          reuseBuildArtifactsFrom:
-          - Windows_x64
-          - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-            - Windows_x86
-          - Windows_arm64
-          brandingType: ${{ variables.brandingType }}
-
-      # build the workloads
-      - template: ../jobs/vmr-build.yml
-        parameters:
-          buildName: Windows_Workloads
-          isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
-          isCodeqlActive: ${{ parameters.isCodeqlActive }}
-          sign: ${{ variables.signEnabled }}
-          signType: ${{ variables.signType }}
-          brandingType: ${{ variables.brandingType }}
-          pool: ${{ parameters.pool_Windows }}
-          targetOS: windows
-          targetArchitecture: x64
-          buildPass: 2
-          extraProperties: /p:BuildWorkloads=true
-          reuseBuildArtifactsFrom:
-          - Windows_x64
-          - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-            - Windows_x86
-          - Windows_arm64
-          - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
             - Browser_Shortstack_wasm
             - Wasi_Shortstack_wasm
             - Android_Shortstack_arm64
@@ -690,47 +647,6 @@ stages:
             - tvOSSimulator_Shortstack_arm64
             - MacCatalyst_Shortstack_arm64
             - MacCatalyst_Shortstack_x64
-
-      ## Build Pass 3 verticals
-
-      # build the Windows SDK bundles
-      - template: ../jobs/vmr-build.yml
-        parameters:
-          buildName: Windows
-          isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
-          isCodeqlActive: ${{ parameters.isCodeqlActive }}
-          sign: ${{ variables.signEnabled }}
-          signType: ${{ variables.signType }}
-          brandingType: ${{ variables.brandingType }}
-          pool: ${{ parameters.pool_Windows }}
-          targetOS: windows
-          targetArchitecture: x64
-          buildPass: 3
-          reuseBuildArtifactsFrom:
-          - Windows_Workloads_x64_BuildPass2
-          - Windows_x64
-          - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-            - Windows_x86
-          - Windows_arm64
-
-      - template: ../jobs/vmr-build.yml
-        parameters:
-          buildName: Windows
-          isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
-          isCodeqlActive: ${{ parameters.isCodeqlActive }}
-          sign: ${{ variables.signEnabled }}
-          signType: ${{ variables.signType }}
-          brandingType: ${{ variables.brandingType }}
-          pool: ${{ parameters.pool_Windows }}
-          targetOS: windows
-          targetArchitecture: arm64
-          buildPass: 3
-          reuseBuildArtifactsFrom:
-          - Windows_Workloads_x64_BuildPass2
-          - Windows_x64
-          - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-            - Windows_x86
-          - Windows_arm64
 
 #### VERTICAL BUILD (Scouting) ####
 - ${{ if in(parameters.scope, 'scout') }}:
@@ -785,24 +701,3 @@ stages:
         pool: ${{ parameters.pool_Windows }}
         targetOS: windows
         targetArchitecture: arm64
-
-    ## Build Pass 2 verticals
-
-    # build the ASP.NET Core hosting bundle and VS components
-    - template: ../jobs/vmr-build.yml
-      parameters:
-        buildName: Windows
-        isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
-        isCodeqlActive: ${{ parameters.isCodeqlActive }}
-        sign: ${{ variables.signEnabled }}
-        signType: ${{ variables.signType }}
-        brandingType: ${{ variables.brandingType }}
-        pool: ${{ parameters.pool_Windows }}
-        targetOS: windows
-        targetArchitecture: x64
-        buildPass: 2
-        reuseBuildArtifactsFrom:
-        - Windows_x64
-        - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
-          - Windows_x86
-        - Windows_arm64
