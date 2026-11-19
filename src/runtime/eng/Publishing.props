@@ -40,20 +40,12 @@
 
   <!--
     The VMR Workloads job builds the Mono toolchain workload pack MSIs and only depends on the short-stack verticals.
-    Publish the RID-agnostic workload packs (and the ref pack, which provides the runtime version) from the WebAssembly
-    verticals with Internal visibility so that they're available to that job without waiting for the Windows verticals,
-    which publish these packages externally.
+    The RID-agnostic workload packs it needs are already published by those verticals (see Signing.props), but the ref pack
+    (which provides the runtime version) is published by the Windows x64 vertical. Publish the browser-wasm copy with Internal
+    visibility so that the Workloads job doesn't need to wait for the Windows verticals.
   -->
   <ItemGroup Condition="'$(EnableDefaultRidSpecificArtifacts)' == 'true' and '$(DotNetBuildFromVMR)' == 'true' and '$(TargetRid)' == 'browser-wasm'">
-    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NETCore.App.Ref.*.nupkg;
-                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.MonoTargets.Sdk.*.nupkg;
-                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Sdk.*.nupkg;
-                      $(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Templates.*.nupkg;
-                      $(ArtifactsPackagesDir)**\Microsoft.NET.Sdk.WebAssembly.Pack.*.nupkg"
-              Visibility="Internal" />
-  </ItemGroup>
-  <ItemGroup Condition="'$(EnableDefaultRidSpecificArtifacts)' == 'true' and '$(DotNetBuildFromVMR)' == 'true' and '$(TargetRid)' == 'wasi-wasm'">
-    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NET.Runtime.WebAssembly.Wasi.Sdk.*.nupkg"
+    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NETCore.App.Ref.*.nupkg"
               Visibility="Internal" />
   </ItemGroup>
 
