@@ -134,6 +134,14 @@
               Kind="Blob" />
   </ItemGroup>
 
+  <!-- With a split workload build, each Windows vertical builds the workload manifest MSIs for its own architecture.
+       Their names don't contain the RID, so they need to be added explicitly when only RID-specific artifacts are published. -->
+  <ItemGroup Condition="'$(WorkloadBuildMode)' == 'Vertical' and '$(EnableDefaultRidSpecificArtifacts)' == 'true'">
+    <Artifact Include="$(ArtifactsShippingPackagesDir)*.Manifest-*.Msi.$(TargetArchitecture).*.nupkg"
+              IsShipping="true"
+              Kind="Package" />
+  </ItemGroup>
+
   <!-- Only publish this file from win-x64 so that we don't end up with duplicates. -->
   <ItemGroup Condition="'$(PublishBinariesAndBadge)' == 'true' and '$(OS)' == 'Windows_NT' and '$(TargetArchitecture)' == 'x64' and '$(PgoInstrument)' != 'true' and ('$(DotNetBuildPass)' == '' or '$(DotNetBuildPass)' == '1')">
     <SdkArtifact Include="$(ArtifactsShippingPackagesDir)productVersion.txt" />

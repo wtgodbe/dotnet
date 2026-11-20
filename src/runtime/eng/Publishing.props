@@ -38,6 +38,17 @@
               IsShipping="false" />
   </ItemGroup>
 
+  <!--
+    The VMR Workloads job builds the Mono toolchain workload pack MSIs and only depends on the short-stack verticals.
+    The RID-agnostic workload packs it needs are already published by those verticals (see Signing.props), but the ref pack
+    (which provides the runtime version) is published by the Windows x64 vertical. Publish the browser-wasm copy with Internal
+    visibility so that the Workloads job doesn't need to wait for the Windows verticals.
+  -->
+  <ItemGroup Condition="'$(EnableDefaultRidSpecificArtifacts)' == 'true' and '$(DotNetBuildFromVMR)' == 'true' and '$(TargetRid)' == 'browser-wasm'">
+    <Artifact Update="$(ArtifactsPackagesDir)**\Microsoft.NETCore.App.Ref.*.nupkg"
+              Visibility="Internal" />
+  </ItemGroup>
+
   <Target Name="GetNonStableProductVersion">
     <!-- Retrieve the non-stable runtime pack product version.
          Don't stabilize the package version in order to retrieve the VersionSuffix. -->

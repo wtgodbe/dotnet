@@ -237,7 +237,7 @@
 
   <Target Name="GenerateSdkBundle"
           DependsOnTargets="$(GenerateSdkBundleDependsOn)"
-          Condition="'$(DotNetBuild)' != 'true' or '$(GenerateSdkBundleOnly)' == 'true'"
+          Condition="'$(DotNetBuild)' != 'true' or '$(GenerateSdkBundleOnly)' == 'true' or '$(WorkloadBuildMode)' == 'Vertical'"
           Inputs="$(SdkMSIInstallerFile);
                   $(DownloadedSharedFrameworkInstallerFile);
                   $(DownloadedHostFxrInstallerFile);

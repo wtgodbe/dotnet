@@ -36,7 +36,7 @@ The workloads build runs as a separate build pass (pass 2) in the VMR pipeline, 
 `eng/pipelines/templates/stages/vmr-verticals.yml`. It needs access to packages produced by
 other build jobs (short-stack builds, full SDK builds) via the `reuseBuildArtifactsFrom` mechanism.
 
-The `Windows_Workloads` job (build pass 2) declares which prior jobs' artifacts it needs:
+The `Windows_Shortstack_Workloads` job (build pass 2) declares which prior jobs' artifacts it needs:
 - `Windows_x64`, `Windows_x86`, `Windows_arm64` — Full SDK build outputs
 - Various short-stack jobs — Mobile and WASM runtime builds (e.g., `Browser_Shortstack_wasm`,
   `Android_Shortstack_arm64`, `iOS_Shortstack_arm64`)
@@ -83,9 +83,9 @@ add `ExcludeAsMsi="true"`.
 **File:** `eng/pipelines/templates/stages/vmr-verticals.yml`
 
 If the new pack is produced by a short-stack build job, that job must be listed in the
-`reuseBuildArtifactsFrom` section of the `Windows_Workloads` job (build pass 2).
+`reuseBuildArtifactsFrom` section of the `Windows_Shortstack_Workloads` job (build pass 2).
 
-Look for the `Windows_Workloads` job definition (search for `buildName: Windows_Workloads`)
+Look for the `Windows_Shortstack_Workloads` job definition (search for `buildName: Windows_Shortstack_Workloads`)
 and add the producing job to `reuseBuildArtifactsFrom`:
 
 ```yaml
@@ -115,7 +115,7 @@ the workload in their upstream repo.
 
 **Diagnosis:**
 1. Check if the pack is listed in `workloads.csproj` — if not, that's your problem.
-2. Check the VMR build logs for the `Windows_Workloads` job to see if the NuGet package is
+2. Check the VMR build logs for the `Windows_Shortstack_Workloads` job to see if the NuGet package is
    available during the workloads build pass.
 3. If the pack IS listed but not found during build, check that the producing job is in
    `reuseBuildArtifactsFrom`.

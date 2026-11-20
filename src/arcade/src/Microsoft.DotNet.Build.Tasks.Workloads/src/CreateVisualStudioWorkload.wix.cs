@@ -130,8 +130,63 @@ public class CreateVisualStudioWorkload : VisualStudioWorkloadTaskBase
         set;
     } = false;
 
+    /// <summary>
+    /// When <see langword="true" /> (default), MSIs, NuGet payload projects and SWIX projects are generated for
+    /// workload manifests.
+    /// </summary>
+    public bool CreateManifestMsis
+    {
+        get;
+        set;
+    } = true;
+
+    /// <summary>
+    /// When <see langword="true" /> (default), MSIs, NuGet payload projects and SWIX projects are generated for
+    /// workload packs. When <see langword="false" />, workload packs are not resolved from <see cref="PackageSource"/>.
+    /// </summary>
+    public bool CreatePackMsis
+    {
+        get;
+        set;
+    } = true;
+
+    /// <summary>
+    /// When <see langword="true" /> (default), SWIX projects are generated for Visual Studio components
+    /// and, when side-by-side manifests are enabled, manifest package groups.
+    /// </summary>
+    public bool CreateComponents
+    {
+        get;
+        set;
+    } = true;
+
+    /// <summary>
+    /// An optional set of platforms (e.g. x64, arm64) to limit generated manifest and pack MSIs to. The set is
+    /// intersected with the platforms supported by each manifest's SDK feature band. When empty, all supported
+    /// platforms are generated.
+    /// </summary>
+    public string[] Platforms
+    {
+        get;
+        set;
+    }
+
+    /// <summary>
+    /// Filters a set of supported platforms using an optional set of requested platforms.
+    /// </summary>
+    internal static string[] FilterPlatforms(string[] supportedPlatforms, string[] requestedPlatforms) =>
+        requestedPlatforms == null || requestedPlatforms.Length == 0
+            ? supportedPlatforms
+            : supportedPlatforms.Where(p => requestedPlatforms.Contains(p, StringComparer.OrdinalIgnoreCase)).ToArray();
+
     protected override bool ExecuteCore()
     {
+        if (!CreatePackMsis && CreateWorkloadPackGroups)
+        {
+            Log.LogError($"{nameof(CreateWorkloadPackGroups)} requires {nameof(CreatePackMsis)} to be enabled.");
+            return false;
+        }
+
         // TODO: trim out duplicate manifests.
         List<WorkloadManifestPackage> manifestPackages = new();
         List<WorkloadManifestMsi> manifestMsisToBuild = new();
@@ -164,8 +219,8 @@ public class CreateVisualStudioWorkload : VisualStudioWorkloadTaskBase
             }
 
             Dictionary<string, WorkloadManifestMsi> manifestMsisByPlatform = new();
-            string[] supportedPlatforms = WorkloadPackageBase.GetSupportedPlatforms(manifestPackage.SdkFeatureBand);
-            foreach (string platform in supportedPlatforms)
+            string[] supportedPlatforms = FilterPlatforms(WorkloadPackageBase.GetSupportedPlatforms(manifestPackage.SdkFeatureBand), Platforms);
+            foreach (string platform in CreateManifestMsis ? supportedPlatforms : [])
             {
                 WorkloadManifestMsi manifestMsi = new(manifestPackage, platform, BuildEngine, WixToolsetConfig, BaseIntermediateOutputPath, 
                     EnableSideBySideManifests, CreateWixPacks);
@@ -175,7 +230,7 @@ public class CreateVisualStudioWorkload : VisualStudioWorkloadTaskBase
 
             // If we're supporting SxS manifests, generate a package group to wrap the manifest VS packages
             // so we don't deal with unstable package IDs during VS insertions.
-            if (EnableSideBySideManifests)
+            if (EnableSideBySideManifests && CreateComponents)
             {
                 SwixPackageGroup packageGroup = new(manifestPackage);
 
@@ -217,7 +272,7 @@ public class CreateVisualStudioWorkload : VisualStudioWorkloadTaskBase
                         };
                     }
 
-                    foreach (WorkloadPackId packId in wd.Packs)
+                    foreach (WorkloadPackId packId in CreatePackMsis ? wd.Packs : [])
                     {
                         WorkloadPack pack = manifest.Packs[packId];
 
@@ -310,6 +365,11 @@ public class CreateVisualStudioWorkload : VisualStudioWorkloadTaskBase
                             }
                             groupPackage.ManifestsPerPlatform[platform].Add(manifestPackage);
                         }                            
+                    }
+
+                    if (!CreateComponents)
+                    {
+                        continue;
                     }
 
                     // Finally, add a component for the workload in Visual Studio.

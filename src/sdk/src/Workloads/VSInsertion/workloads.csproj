@@ -10,7 +10,7 @@
     <WorkloadOutputPath>$(ArtifactsBinDir)workloads/</WorkloadOutputPath>
 
     <ManifestsPackageSource>$(ArtifactsShippingPackagesDir)/</ManifestsPackageSource>
-    <ManifestsPackageSource Condition="'$(DotNetBuild)' == 'true' and '$(DotNetBuildPass)' == '2'">$(SourceBuiltShippingPackagesDir)/</ManifestsPackageSource>
+    <ManifestsPackageSource Condition="'$(DotNetBuild)' == 'true' and '$(DotNetBuildPass)' == '2' and '$(WorkloadBuildMode)' == ''">$(SourceBuiltShippingPackagesDir)/</ManifestsPackageSource>
 
     <WorkloadPacksSource>$(WorkloadIntermediateOutputPath)packs</WorkloadPacksSource>
 
@@ -19,9 +19,30 @@
     <RunAnalyzers>false</RunAnalyzers>
   </PropertyGroup>
 
+  <!--
+    WorkloadBuildMode splits the workload build so that the .NET product build (VMR) doesn't need a join
+    on the Windows verticals:
+      ''         Build the manifest MSIs, pack MSIs and VS components of all workloads (default).
+      'Vertical' Windows x64/arm64 verticals: build the manifest MSIs for $(TargetArchitecture), the emsdk pack MSIs
+                 from the emsdk packs built in this vertical and, on x64 only, the VS components and package groups.
+      'Packs'    Workloads job: build only the Mono toolchain pack MSIs from the packs built by the short-stack verticals.
+  -->
+  <PropertyGroup Condition="'$(WorkloadBuildMode)' != ''">
+    <_WorkloadPlatforms Condition="'$(WorkloadBuildMode)' == 'Vertical'">$(TargetArchitecture)</_WorkloadPlatforms>
+    <_CreateWorkloadManifestMsis>false</_CreateWorkloadManifestMsis>
+    <_CreateWorkloadManifestMsis Condition="'$(WorkloadBuildMode)' == 'Vertical'">true</_CreateWorkloadManifestMsis>
+    <_CreateRuntimeWorkloadPackMsis>false</_CreateRuntimeWorkloadPackMsis>
+    <_CreateRuntimeWorkloadPackMsis Condition="'$(WorkloadBuildMode)' == 'Packs'">true</_CreateRuntimeWorkloadPackMsis>
+    <_CreateWorkloadComponents>false</_CreateWorkloadComponents>
+    <_CreateWorkloadComponents Condition="'$(WorkloadBuildMode)' == 'Vertical' and '$(TargetArchitecture)' == 'x64'">true</_CreateWorkloadComponents>
+    <!-- Each Windows vertical produces its own VS drops, so make the zip names architecture-specific. -->
+    <_VSDropSuffix Condition="'$(WorkloadBuildMode)' == 'Vertical'">.$(TargetArchitecture)</_VSDropSuffix>
+  </PropertyGroup>
+
   <ItemGroup>
-    <!-- In .NET product build mode in the second build pass, there's no need to build the manifests since they're already downloaded from another vertical -->
-    <ProjectReference Include="$(RepoRoot)\src\Workloads\Manifests\manifest-packages.csproj" ReferenceOutputAssembly="false" Condition="'$(DotNetBuild)' != 'true'" />
+    <!-- In .NET product build mode in the second build pass, there's no need to build the manifests since they're already downloaded from another vertical,
+         unless the workload build is split (WorkloadBuildMode), in which case the manifests are always built locally. -->
+    <ProjectReference Include="$(RepoRoot)\src\Workloads\Manifests\manifest-packages.csproj" ReferenceOutputAssembly="false" Condition="'$(DotNetBuild)' != 'true' or '$(WorkloadBuildMode)' != ''" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(BuildWorkloads)' == 'true'">
@@ -88,6 +109,22 @@
     <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Python.win-arm64" />
     <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Sdk.win-x64" />
     <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Sdk.win-arm64" />
+  </ItemGroup>
+
+  <!-- The Workloads job only has the short-stack packs: skip the Windows runtime packs and the emsdk packs. -->
+  <ItemGroup Condition="'$(WorkloadBuildMode)' == 'Packs'">
+    <RuntimeWorkloadPacksToDownload Remove="@(RuntimeWorkloadPacksToDownload->WithMetadataValue('ExcludeAsMsi', 'true'))" />
+    <EmsdkWorkloadPacksToDownload Remove="@(EmsdkWorkloadPacksToDownload)" />
+  </ItemGroup>
+
+  <!-- The Windows verticals only wrap the emsdk packs built in the same vertical. -->
+  <ItemGroup Condition="'$(WorkloadBuildMode)' == 'Vertical'">
+    <RuntimeWorkloadPacksToDownload Remove="@(RuntimeWorkloadPacksToDownload)" />
+    <EmsdkWorkloadPacksToDownload Remove="@(EmsdkWorkloadPacksToDownload)" />
+    <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Cache.win-$(TargetArchitecture)" />
+    <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Node.win-$(TargetArchitecture)" />
+    <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Python.win-$(TargetArchitecture)" />
+    <EmsdkWorkloadPacksToDownload Include="Microsoft.NET.Runtime.Emscripten.$(EmscriptenVersionCurrent).Sdk.win-$(TargetArchitecture)" />
   </ItemGroup>
 
   <ItemGroup>
@@ -169,7 +206,7 @@
           Condition="'$(BuildWorkloads)' == 'true' and '$(DownloadWorkloadMsis)' != 'true'">
     <ItemGroup>
       <DownloadedWorkloadPacks Include="$(NuGetPackageRoot)\%(RuntimeWorkloadPacksToDownload.Identity)\$(MicrosoftNETCoreAppRuntimePackageVersion)\*.nupkg" />
-      <DownloadedWorkloadPacks Include="$(NuGetPackageRoot)\%(EmsdkWorkloadPacksToDownload.Identity)\$(MicrosoftNETCoreAppRuntimePackageVersion)\*.nupkg" />
+      <DownloadedWorkloadPacks Include="$(NuGetPackageRoot)\%(EmsdkWorkloadPacksToDownload.Identity)\$(MicrosoftNETRuntimeEmscriptenInternalPackageVersion)\*.nupkg" />
     </ItemGroup>
 
     <Copy SourceFiles="@(DownloadedWorkloadPacks)"
@@ -505,9 +542,10 @@
     </ItemGroup>
 
     <Error Text="Could not find expected manifest packages in $(ManifestsPackageSource)"
-           Condition="'@(RuntimeManifestPackages)' == '' or '@(EmsdkManifestPackages)' == ''" />
+           Condition="'@(RuntimeManifestPackages)' == '' or ('@(EmsdkManifestPackages)' == '' and '$(WorkloadBuildMode)' != 'Packs')" />
 
     <CreateVisualStudioWorkload
+          Condition="'$(WorkloadBuildMode)' == ''"
           AllowMissingPacks="True"
           BaseIntermediateOutputPath="$(WorkloadIntermediateOutputPath)"
           BaseOutputPath="$(WorkloadOutputPath)"
@@ -525,6 +563,7 @@
     </CreateVisualStudioWorkload>
 
     <CreateVisualStudioWorkload
+          Condition="'$(WorkloadBuildMode)' == ''"
           AllowMissingPacks="True"
           BaseIntermediateOutputPath="$(WorkloadIntermediateOutputPath)"
           BaseOutputPath="$(WorkloadOutputPath)"
@@ -541,30 +580,74 @@
       <Output TaskParameter="Msis" ItemName="EmsdkMsis" />
     </CreateVisualStudioWorkload>
 
+    <!-- Split workload build (see WorkloadBuildMode). These invocations are separate from the ones above as they require a
+         version of the workloads task that supports the CreateManifestMsis/CreatePackMsis/CreateComponents/Platforms parameters. -->
+    <CreateVisualStudioWorkload
+          Condition="'$(WorkloadBuildMode)' != ''"
+          AllowMissingPacks="True"
+          BaseIntermediateOutputPath="$(WorkloadIntermediateOutputPath)"
+          BaseOutputPath="$(WorkloadOutputPath)"
+          ComponentResources="@(RuntimeComponentResources)"
+          CreateComponents="$(_CreateWorkloadComponents)"
+          CreateManifestMsis="$(_CreateWorkloadManifestMsis)"
+          CreatePackMsis="$(_CreateRuntimeWorkloadPackMsis)"
+          EnableSideBySideManifests="true"
+          HeatExe="$(HeatExe)"
+          ManifestMsiVersion="$(MsiVersion)"
+          PackageSource="$(WorkloadPacksSource)"
+          Platforms="$(_WorkloadPlatforms)"
+          ShortNames="@(ShortNames)"
+          WixExe="$(WixExe)"
+          WixExtensions="@(WixExtensions)"
+          WorkloadManifestPackageFiles="@(RuntimeManifestPackages)">
+      <Output TaskParameter="SwixProjects" ItemName="RuntimeSwixProjects" />
+      <Output TaskParameter="Msis" ItemName="RuntimeMsis" />
+    </CreateVisualStudioWorkload>
+
+    <CreateVisualStudioWorkload
+          Condition="'$(WorkloadBuildMode)' == 'Vertical'"
+          AllowMissingPacks="True"
+          BaseIntermediateOutputPath="$(WorkloadIntermediateOutputPath)"
+          BaseOutputPath="$(WorkloadOutputPath)"
+          ComponentResources="@(EmsdkComponentResources)"
+          CreateComponents="$(_CreateWorkloadComponents)"
+          EnableSideBySideManifests="true"
+          HeatExe="$(HeatExe)"
+          ManifestMsiVersion="$(MsiVersion)"
+          PackageSource="$(WorkloadPacksSource)"
+          Platforms="$(_WorkloadPlatforms)"
+          ShortNames="@(ShortNames)"
+          WixExe="$(WixExe)"
+          WixExtensions="@(WixExtensions)"
+          WorkloadManifestPackageFiles="@(EmsdkManifestPackages)">
+      <Output TaskParameter="SwixProjects" ItemName="EmsdkSwixProjects" />
+      <Output TaskParameter="Msis" ItemName="EmsdkMsis" />
+    </CreateVisualStudioWorkload>
+
     <!-- Split SWIX projects for packs and components/manifests and build them into separate folders. This allows us to consume pack-only drops
          across multiple VS builds to support multi-targeting. -->
     <ItemGroup>
       <!-- runtime -->
       <SwixWorkloadPackProjects Include="@(RuntimeSwixProjects)" Condition="'%(PackageType)' == 'msi-pack'"
                                 ManifestOutputPath="$(VStemp)\runtime\p\%(RuntimeSwixProjects.SdkFeatureBand)"
-                                ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand).packs.zip"/>
+                                ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand)$(_VSDropSuffix).packs.zip"/>
       <SwixComponentsAndManifests Include="@(RuntimeSwixProjects)" Condition="('%(PackageType)' == 'msi-manifest') Or ('%(PackageType)' == 'manifest-package-group') Or ('%(PackageType)' == 'component' And '%(IsPreview)' == 'false')"
                                   ManifestOutputPath="$(VStemp)\runtime\c\%(RuntimeSwixProjects.SdkFeatureBand)"
-                                  ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand).components.zip"/>
+                                  ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand)$(_VSDropSuffix).components.zip"/>
       <SwixPreviewComponentsAndManifests Include="@(RuntimeSwixProjects)" Condition="('%(PackageType)' == 'msi-manifest') Or ('%(PackageType)' == 'component' And '%(IsPreview)' == 'true')"
                                          ManifestOutputPath="$(VStemp)\runtime\c\%(RuntimeSwixProjects.SdkFeatureBand).pre"
-                                         ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand)-pre.components.zip"/>
+                                         ZipFile="Workload.VSDrop.mono.net.$(VersionMajor).$(VersionMinor)-%(RuntimeSwixProjects.SdkFeatureBand)-pre$(_VSDropSuffix).components.zip"/>
 
       <!-- emsdk -->
       <SwixWorkloadPackProjects Include="@(EmsdkSwixProjects)" Condition="'%(PackageType)' == 'msi-pack'"
                                 ManifestOutputPath="$(VStemp)\emsdk\p\%(EmsdkSwixProjects.SdkFeatureBand)"
-                                ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand).packs.zip"/>
+                                ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand)$(_VSDropSuffix).packs.zip"/>
       <SwixComponentsAndManifests Include="@(EmsdkSwixProjects)" Condition="('%(PackageType)' == 'msi-manifest') Or ('%(PackageType)' == 'manifest-package-group') Or ('%(PackageType)' == 'component' And '%(IsPreview)' == 'false')"
                                   ManifestOutputPath="$(VStemp)\emsdk\c\%(EmsdkSwixProjects.SdkFeatureBand)"
-                                  ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand).components.zip"/>
+                                  ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand)$(_VSDropSuffix).components.zip"/>
       <SwixPreviewComponentsAndManifests Include="@(EmsdkSwixProjects)" Condition="('%(PackageType)' == 'msi-manifest') Or ('%(PackageType)' == 'component' And '%(IsPreview)' == 'true')"
                                          ManifestOutputPath="$(VStemp)\emsdk\c\%(EmsdkSwixProjects.SdkFeatureBand).pre"
-                                         ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand)-pre.components.zip"/>
+                                         ZipFile="Workload.VSDrop.emsdk.$(VersionMajor).$(VersionMinor)-%(EmsdkSwixProjects.SdkFeatureBand)-pre$(_VSDropSuffix).components.zip"/>
 
       <PartitionedSwixProjects Include="@(SwixWorkloadPackProjects);@(SwixComponentsAndManifests);@(SwixPreviewComponentsAndManifests)" />
     </ItemGroup>
