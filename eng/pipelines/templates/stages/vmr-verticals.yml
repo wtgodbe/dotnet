@@ -624,7 +624,7 @@ stages:
       - ${{ if not(parameters.excludeRuntimeDependentJobs) }}:
         - template: ../jobs/vmr-build.yml
           parameters:
-            buildName: Windows_Workloads
+            buildName: Windows_Shortstack_Workloads
             isBuiltFromVmr: ${{ parameters.isBuiltFromVmr }}
             isCodeqlActive: ${{ parameters.isCodeqlActive }}
             sign: ${{ variables.signEnabled }}
